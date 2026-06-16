@@ -11,8 +11,9 @@ keep output agent-grep-friendly.
 - **Source anchors** per note — id / class / all attributes / literal opening tag + text, so the agent greps the real source.
 - **Richer anchors** — nearest accessible label, instance ordinal (`2 of 5 matching .btn`), and relevant computed styles (a before-state for "make the padding smaller").
 - **SPA route-aware** — re-keys notes on `pushState`/`replaceState`/`popstate`/`hashchange` so notes don't vanish or save under the wrong path in React/Vue/Next apps.
-- **Exports** — Copy markdown (Alt+Shift+C) · Copy JSON (Alt+Shift+J) · `window.__bhAnno.copyPrompt()` (markdown + a ready agent preamble) · `json()`.
+- **Exports** — Copy markdown (Alt+Shift+C) · Copy JSON (`window.__bhAnno.copyJson()`) · `window.__bhAnno.copyPrompt()` (markdown + a ready agent preamble) · `json()`.
 - **Honest feedback** — copy flashes ✓/empty; non-injectable pages (chrome://, Web Store, PDF, view-source:) show a red `!` badge + title instead of failing silently; 3-step empty-state guide.
+- **Shortcuts + in-app help** — Toggle (Alt+Shift+A) · Copy (Alt+Shift+C) · Pause (Alt+A) · Clear (Alt+Shift+X) · Save (⌘/Ctrl+Enter) · Cancel (Esc); the panel's **? shortcuts** link shows the cheatsheet.
 
 ## P1 — correctness & the core loop
 

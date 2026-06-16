@@ -1,6 +1,6 @@
 // browser-annotations — the toolbar button (and Alt+Shift+A) toggles the annotation
-// overlay on/off for the current tab; Alt+Shift+C copies notes as markdown, Alt+Shift+J
-// as JSON. Per-tab on/off state lives in chrome.storage.session.
+// overlay on/off for the current tab; Alt+Shift+C copies notes as markdown.
+// Per-tab on/off state lives in chrome.storage.session.
 //
 // activeTab + scripting → the click/shortcut itself grants one-tab injection rights,
 // so no broad host permissions. If a page can't be injected (chrome://, the Web Store,
@@ -39,7 +39,7 @@ async function disable(tabId) {
   badge(tabId, ""); setTitle(tabId);
 }
 
-// Run an overlay public method in the page (Alt+Shift+C / Alt+Shift+J). The injected
+// Run an overlay public method in the page (Alt+Shift+C → "copy"). The injected
 // function can only reach window.__bhAnno (the public API), not the overlay's closures.
 function callOverlay(tabId, method) {
   return chrome.scripting.executeScript({
@@ -62,13 +62,19 @@ chrome.action.onClicked.addListener(async (tab) => {
   }
 });
 
-// Alt+Shift+C → copy markdown · Alt+Shift+J → copy JSON (both via the overlay's flash)
+// Alt+Shift+C → copy markdown · Alt+A → pause/resume (both via the overlay's public methods)
 chrome.commands.onCommand.addListener(async (cmd, tab) => {
   if (!tab || tab.id == null) return;
   try {
     if (cmd === "copy-annotations") await callOverlay(tab.id, "copy");
-    else if (cmd === "copy-annotations-json") await callOverlay(tab.id, "copyJson");
+    else if (cmd === "toggle-pause") await callOverlay(tab.id, "togglePause");
   } catch (e) {}
+});
+
+// Content-script "? shortcuts" link → open Chrome's shortcuts page. chrome:// URLs are
+// off-limits to page JS, but the service worker can open one with chrome.tabs.create.
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg && msg.type === "bh-open-shortcuts") chrome.tabs.create({ url: "chrome://extensions/shortcuts" });
 });
 
 // reset state on reload/navigation and tab close → next toggle injects fresh

@@ -26,6 +26,9 @@
   function getKey() { return "bh-anno:" + location.pathname + location.hash; }
   try { var saved = localStorage.getItem(getKey()); if (saved) S.items = JSON.parse(saved) || []; } catch (e) {}
   var seq = S.items.reduce(function (m, a) { return Math.max(m, a.id || 0); }, 0);
+  // Running as the extension (vs console-paste standalone)? Decides whether Alt+A is
+  // handled here or by the browser command in background.js (immune to page accesskeys).
+  var _isExt = !!(typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.id);
 
   function save() { try { localStorage.setItem(getKey(), JSON.stringify(S.items)); } catch (e) {} }
   function cssEsc(s) { return (window.CSS && CSS.escape) ? CSS.escape(s) : String(s).replace(/[^\w-]/g, "\\$&"); }
@@ -88,8 +91,7 @@
     "#bh-panel{position:fixed;right:16px;bottom:16px;z-index:" + (Z + 2) + ";width:336px;max-height:48vh;display:flex;flex-direction:column;background:" + BG + ";color:" + TXT + ";border:1px solid " + BORD + ";border-radius:18px;box-shadow:0 18px 56px rgba(0,0,0,.55),0 0 0 1px " + BORD_S + ";overflow:hidden;animation:bh-rise .24s cubic-bezier(.22,1,.36,1) both}" +
     "#bh-panel .h{display:flex;align-items:center;gap:8px;padding:13px 14px;background:" + HDR + ";border-bottom:1px solid " + BORD + "}" +
     "#bh-panel .h .dot{width:8px;height:8px;border-radius:50%;background:" + ACCENT + ";flex:0 0 auto;box-shadow:0 0 0 3px rgba(16,163,127,.18)}" +
-    "#bh-panel .h .ttl{font:600 14px/1 " + FONT + ";letter-spacing:.2px;white-space:nowrap}" +
-    "#bh-panel .h .sp{flex:1}" +
+    "#bh-panel .h .ttl{font:600 14px/1 " + FONT + ";letter-spacing:.2px;white-space:nowrap;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}" +
     "#bh-panel .h button{flex:0 0 auto;cursor:pointer;border:1px solid " + BORD + ";background:transparent;color:" + MUT + ";border-radius:999px;font:600 11px/1 " + FONT + ";padding:7px 11px;letter-spacing:.2px;transition:background .15s ease,color .15s ease,border-color .15s ease,transform .08s ease}" +
     "#bh-panel .h button:hover{background:" + SURF + ";color:" + TXT + "}" +
     "#bh-panel .h button:active{transform:translateY(1px)}" +
@@ -105,7 +107,17 @@
     "#bh-list .it .b{flex:1;min-width:0}" +
     "#bh-list .it .s{color:" + MUT + ";font:10px/1.35 " + MONO + ";word-break:break-all;margin-top:3px}" +
     "#bh-list .it .x{cursor:pointer;color:#6e6e6e;flex:0 0 auto;transition:color .12s ease}#bh-list .it .x:hover{color:" + ACCENT + "}" +
-    "#bh-panel .f{padding:10px 14px;border-top:1px solid " + BORD + ";font:11px/1.3 " + FONT + ";color:" + MUT + ";display:flex;justify-content:space-between;gap:8px;background:" + HDR + "}";
+    "#bh-panel .f{padding:10px 14px;border-top:1px solid " + BORD + ";font:11px/1.3 " + FONT + ";color:" + MUT + ";display:flex;justify-content:space-between;gap:8px;background:" + HDR + "}" +
+    "#bh-panel .f .lk{cursor:pointer;color:" + MUT + ";transition:color .12s ease}#bh-panel .f .lk:hover{color:" + ACCENT + "}" +
+    "#bh-help{display:none;flex:1;overflow:auto;padding:10px 12px}" +
+    "#bh-help .sec{color:" + MUT + ";font:600 10px/1 " + FONT + ";letter-spacing:.08em;text-transform:uppercase;margin:12px 2px 6px}" +
+    "#bh-help .sec:first-child{margin-top:2px}" +
+    "#bh-help .r{display:flex;align-items:center;gap:10px;padding:5px 2px}" +
+    "#bh-help .r .lbl{flex:1;color:" + TXT + ";font:13px/1.3 " + FONT + "}" +
+    "#bh-help kbd{flex:0 0 auto;background:" + SURF + ";color:" + TXT + ";border:1px solid " + BORD + ";border-bottom-width:2px;border-radius:6px;padding:3px 7px;font:600 11px/1 " + MONO + ";white-space:nowrap}" +
+    "#bh-help .tip{margin-top:12px;padding-top:9px;border-top:1px solid " + BORD_S + ";color:" + MUT + ";font:11px/1.45 " + FONT + ";word-break:break-word}" +
+    "#bh-help .tip .lnk{color:" + ACCENT + ";cursor:pointer;text-decoration:underline;text-underline-offset:2px;word-break:break-all}" +
+    "#bh-help .tip .lnk:hover{color:" + ACCENT_H + "}";
 
   // ---------- element helpers ----------
   function el(tag, attrs) { var n = document.createElement(tag); n.setAttribute("data-bh-ui", "1"); if (attrs) for (var k in attrs) n.setAttribute(k, attrs[k]); return n; }
@@ -130,13 +142,44 @@
   bMode.setAttribute("data-bh-ui", "1"); bCopy.setAttribute("data-bh-ui", "1"); bClear.setAttribute("data-bh-ui", "1");
   bCopy.textContent = "Copy"; bClear.textContent = "Clear";
   ph.appendChild(el("span", { class: "dot" })); ph.appendChild(pTitle);
-  ph.appendChild(el("span", { class: "sp" })); ph.appendChild(bCopy); ph.appendChild(bMode); ph.appendChild(bClear);
+  ph.appendChild(bCopy); ph.appendChild(bMode); ph.appendChild(bClear);
   var list = el("div", { id: "bh-list" });
+
+  // Shortcuts cheatsheet — the footer "? shortcuts" link swaps it in over the list.
+  var help = el("div", { id: "bh-help" });
+  [
+    ["In the browser", [
+      ["Toggle annotations on/off", ["Alt+Shift+A"]],
+      ["Copy notes (markdown)", ["Alt+Shift+C"]]
+    ]],
+    ["While annotating", [
+      ["Pause / resume capture", ["Alt+A"]],
+      ["Clear all notes", ["Alt+Shift+X"]],
+      ["Save note", ["⌘/Ctrl", "Enter"]],
+      ["Cancel note", ["Esc"]]
+    ]]
+  ].forEach(function (grp) {
+    var sec = el("div", { class: "sec" }); sec.textContent = grp[0]; help.appendChild(sec);
+    grp[1].forEach(function (row) {
+      var r = el("div", { class: "r" });
+      var lbl = el("span", { class: "lbl" }); lbl.textContent = row[0]; r.appendChild(lbl);
+      row[1].forEach(function (k) { var kb = el("kbd"); kb.textContent = k; r.appendChild(kb); });
+      help.appendChild(r);
+    });
+  });
+  var tip = el("div", { class: "tip" });
+  tip.appendChild(document.createTextNode("Browser shortcuts are rebindable at "));
+  var tipLink = el("span", { class: "lnk", role: "link", tabindex: "0" });
+  tipLink.textContent = "chrome://extensions/shortcuts";
+  tip.appendChild(tipLink);
+  help.appendChild(tip);
+
   var foot = el("div", { class: "f" });
   var fLeft = document.createElement("span"); fLeft.textContent = "Copy → paste to your agent";
-  var fRight = document.createElement("span"); fRight.textContent = "⌥A pause";
+  var FOOT_HINT = "⌥A pause · ? shortcuts";
+  var fRight = document.createElement("span"); fRight.className = "lk"; fRight.textContent = FOOT_HINT;
   foot.appendChild(fLeft); foot.appendChild(fRight);
-  panel.appendChild(ph); panel.appendChild(list); panel.appendChild(foot);
+  panel.appendChild(ph); panel.appendChild(list); panel.appendChild(help); panel.appendChild(foot);
 
   var pinLayer = el("div", { id: "bh-pins" });
   pinLayer.style.cssText = "position:absolute;top:0;left:0;width:0;height:0;z-index:" + (Z + 1);
@@ -327,7 +370,14 @@
   document.addEventListener("click", onClick, true);
   function onKey(e) {
     if (e.key === "Escape" && input.style.display === "block") cancel();
-    if (e.altKey && (e.key === "a" || e.key === "A")) { S.mode = !S.mode; render(); }
+    // Alt+A toggles capture. Match the physical key (e.code) so it survives macOS Option-remapping
+    // (Option+A → "å") and non-US layouts; require no other modifier and skip while a note box is
+    // open. The extension also binds Alt+A as a browser command (immune to page accesskeys / the
+    // Alt-menu, but Chrome may leave it unassigned) — S.togglePause debounces so the two paths
+    // never double-toggle.
+    if (e.altKey && !e.shiftKey && !e.ctrlKey && !e.metaKey && e.code === "KeyA" && input.style.display !== "block") { e.preventDefault(); S.togglePause(); }
+    // Alt+Shift+X clears all notes (confirms first). Physical key so layouts/macOS don't break it.
+    if (e.altKey && e.shiftKey && !e.ctrlKey && !e.metaKey && e.code === "KeyX" && input.style.display !== "block") { e.preventDefault(); clearAll(); }
     if (input.style.display === "block" && (e.metaKey || e.ctrlKey) && e.key === "Enter") commit();
   }
   document.addEventListener("keydown", onKey, true);
@@ -420,10 +470,35 @@
   function copyJson() { if (!S.items.length) { flashCopy("empty"); return; } copyText(JSON.stringify(S.items, null, 2)); }
   function copyPrompt() { if (!S.items.length) { flashCopy("empty"); return; } copyText(PROMPT_PRE + "\n\n" + toMarkdown()); }
 
+  function clearAll() { if (S.items.length && confirm("Clear all annotations on this page?")) S.clear(); }
+  function flipMode() { S.mode = !S.mode; render(); }
+  // The footer "? shortcuts" link swaps the list for the cheatsheet (and back).
+  function toggleHelp(force) {
+    var on = typeof force === "boolean" ? force : help.style.display !== "block";
+    help.style.display = on ? "block" : "none";
+    list.style.display = on ? "none" : "block";
+    fRight.textContent = on ? "✕ close shortcuts" : FOOT_HINT;
+    fRight.style.color = on ? ACCENT : "";
+  }
   bSave.onclick = commit; bCancel.onclick = cancel;
   bCopy.onclick = copyMarkdown;
-  bMode.onclick = function () { S.mode = !S.mode; render(); };
-  bClear.onclick = function () { if (confirm("Clear all annotations on this page?")) { S.items = []; save(); render(); } };
+  bMode.onclick = flipMode;
+  bClear.onclick = clearAll;
+  fRight.onclick = function () { toggleHelp(); };
+  // chrome:// can't be navigated from page JS — ask the background to open it; standalone copies it.
+  function openShortcuts() {
+    try {
+      if (_isExt && chrome.runtime.sendMessage) {
+        chrome.runtime.sendMessage({ type: "bh-open-shortcuts" }, function () { void chrome.runtime.lastError; });
+        return;
+      }
+    } catch (e) {}
+    try { if (navigator.clipboard) navigator.clipboard.writeText("chrome://extensions/shortcuts"); } catch (e) {}
+    var o = tipLink.textContent; tipLink.textContent = "copied — paste in the address bar";
+    setTimeout(function () { tipLink.textContent = o; }, 1600);
+  }
+  tipLink.onclick = openShortcuts;
+  tipLink.onkeydown = function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openShortcuts(); } };
 
   // ---------- public API ----------
   S.show = function () { if (panel) panel.style.display = "flex"; };
@@ -431,11 +506,19 @@
   S.markdown = toMarkdown;
   S.json = function () { return S.items.slice(); };
   S.copy = copyMarkdown;      // background (Alt+Shift+C) calls this public method, not the closure
-  S.copyJson = copyJson;      // Alt+Shift+J
+  S.copyJson = copyJson;      // console: window.__bhAnno.copyJson()
   S.copyPrompt = copyPrompt;
   S.clear = function () { S.items = []; save(); render(); };
   // Flip from passive display to interactive capture.
   S.activate = function () { S.mode = true; render(); };
+  // Pause / resume capture — fired by both the browser command "Alt+A" and the in-page key.
+  // Debounce: if both reach us for the same press (~same ms), the 2nd is a no-op so we toggle once.
+  var _lastToggle = 0;
+  S.togglePause = function () {
+    var now = Date.now();
+    if (now - _lastToggle < 120) return;
+    _lastToggle = now; flipMode();
+  };
   // Full teardown — clean removal (drop all nodes + listeners + restore history) for any caller.
   S.destroy = function () {
     try {
