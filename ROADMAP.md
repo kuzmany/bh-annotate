@@ -5,7 +5,7 @@ server, works offline, minimal permissions** (prefer `activeTab` over broad
 `host_permissions` — any item that needs more is flagged), reuse the single overlay,
 keep output agent-grep-friendly.
 
-## Shipped (v1.2.0)
+## Shipped (v1.7.0)
 
 - **Toggle on/off** — toolbar button or **Alt+Shift+A** (per-tab state, `destroy()` on off).
 - **Source anchors** per note — id / class / all attributes / literal opening tag + text, so the agent greps the real source.
@@ -14,6 +14,8 @@ keep output agent-grep-friendly.
 - **Exports** — Copy markdown (Alt+Shift+C) · Copy JSON (`window.__bhAnno.copyJson()`) · `window.__bhAnno.copyPrompt()` (markdown + a ready agent preamble) · `json()`.
 - **Honest feedback** — copy flashes ✓/empty; non-injectable pages (chrome://, Web Store, PDF, view-source:) show a red `!` badge + title instead of failing silently; 3-step empty-state guide.
 - **Shortcuts + in-app help** — Toggle (Alt+Shift+A) · Copy (Alt+Shift+C) · Pause (Alt+A) · Clear (Alt+Shift+X) · Save (⌘/Ctrl+Enter) · Cancel (Esc); the panel's **? shortcuts** link shows the cheatsheet.
+- **Content notes** (v1.7.0) — select text instead of clicking an element to review the *content*: quote + prefix/suffix context + heading path (W3C TextQuoteSelector), painted with the CSS Custom Highlight API (no DOM mutation), re-resolved from `localStorage` after reload, repeats disambiguated by context.
+- **Note-box header** (v1.7.0) — DESIGN / CONTENT badge so the kind is visible while typing, and a drag handle to move the box off what it covers.
 
 ## P1 — correctness & the core loop
 
@@ -31,7 +33,7 @@ keep output agent-grep-friendly.
 - **Burst capture** (S) — sticky mode: stay armed for the next element after Save.
 - **Pause/resume hardening** (S) — clear armed/paused badge so you never annotate by accident.
 - **Real icon set + store assets** (M) — dedicated 16/32/48/128 icons + promo screenshots/descriptions (under `store/`, not packaged).
-- **PRIVACY.md + permission justification** (S) — collects nothing, sends nothing, no remote code; one line per permission. Required for Web Store review.
+- ~~**PRIVACY.md + permission justification**~~ — *shipped v1.7.0* ([PRIVACY.md](PRIVACY.md)).
 
 ## P3 — reach & power features
 

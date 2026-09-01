@@ -2,11 +2,10 @@
 
 # browser-annotations
 
-**Design review: click what you want changed. Content review: select the text you want checked. Paste into your AI coding agent.**
+**Point at a page. Say what's wrong. Paste it to your AI coding agent.**
 
-A tiny Chrome extension that turns *"make the button greener, move it left"* — and *"verify this claim,
-expand this paragraph"* — into precise notes your agent can act on — with the **exact source file**
-(or the text to search for) attached.
+Click an element to note a **design** change. Select text to note a **content** question.
+Copy → paste. Every note carries the exact anchor your agent needs to find that thing in your source.
 
 No account. No server. Nothing leaves your browser.
 
@@ -14,52 +13,50 @@ No account. No server. Nothing leaves your browser.
 ![Manifest V3](https://img.shields.io/badge/Chrome-MV3-555.svg)
 ![Works with](https://img.shields.io/badge/works%20with-Claude%20Code%20·%20Cursor%20·%20Codex-10A37F.svg)
 
-<img src="docs/demo.png" alt="browser-annotations: numbered green pins on a live page + the annotations panel" width="820">
+<img src="docs/demo.png" alt="Numbered green pins on a live page next to the annotations panel" width="820">
 
 </div>
 
 ---
 
-## Your agent edits the UI blind. This gives it eyes.
+## The problem
 
-You ask for a change. Your agent writes code it can't see. Then you squint at the browser and type a
-whole paragraph — *"the CTA's too big, move it left, wrong green."* Slow, and a lot gets lost on the way.
+Your agent writes UI it can't see, and writes content it can't fact-check. So you squint at the browser
+and type a paragraph back — *"the CTA's too big, move it left, wrong green"*, *"where does that 34% come
+from?"* Slow, vague, and the agent still has to guess which element or sentence you meant.
 
-**Point at the real page instead.** Click the element → type the change → **Copy** → paste to your agent.
-Every note carries exactly what's needed to find the code:
+**Point at the real page instead.** Two gestures, no mode to switch:
 
-- **On a dev build** — the component's **file and line** (e.g. `src/components/Cart.tsx:48`), read straight
-  from React / Next, Vue, Svelte or Angular.
-- **Always** — the element's tag, `id`, `data-testid`, nearby label and visible text — the exact strings
-  your agent can search for. Random build-generated class names get flagged as noise so it ignores them.
+| Gesture | Note kind | For | Anchored by |
+|---|---|---|---|
+| **Click an element** | 🟢 Design | *"make this green", "move it left"* | source file:line (dev build), else `data-testid` / `id` / text |
+| **Select a run of text** | 🔵 Content | *"verify this number", "expand this"* | the quote itself + surrounding context + heading path |
 
-So your agent edits the **right** code instead of guessing.
+<div align="center">
+<img src="docs/content-notes.png" alt="Highlighted sentences with review questions, plus one design note, in the annotations panel" width="820">
+</div>
 
 ## Install (30 seconds)
 
 Not on the Chrome Web Store yet, so load it by hand:
 
-1. Download this repo (green **Code** button → **Download ZIP**, then unzip). Or `git clone` it.
+1. Download this repo (green **Code** button → **Download ZIP**, then unzip) — or `git clone` it.
 2. Open **`chrome://extensions`** and turn on **Developer mode** (top-right toggle).
-3. Click **Load unpacked** and pick the **`extension/`** folder.
+3. Click **Load unpacked** and pick the **`extension/`** folder — *that subfolder, not the repo root.*
 4. Pin **browser-annotations** to your toolbar so it's one click away.
+
+To update later: `git pull`, then hit **Reload** on the extension card.
 
 ## Use it
 
-1. **Turn it on** — click the toolbar button (or press **Alt+Shift+A**). The icon shows a green ●.
-2. **Annotate** — the gesture picks the mode, no switch to flip:
-   - **Design note — click an element.** Hover highlights it, click opens the note box, type what to
-     change ("make this green", "move it left"), hit **Save**.
-   - **Content note — select a run of text.** The note box opens with the quote; type your question or
-     review remark ("verify this number", "expand this paragraph"). Great for reviewing AI-generated
-     reports and long pages. The quote gets a green highlight.
+1. **Turn it on** — toolbar button or **Alt+Shift+A**. The icon shows a green ●.
+2. **Annotate** — click an element, or select text. Type the note, hit **Save** (⌘/Ctrl+Enter).
+   The note box shows which kind you're writing (**DESIGN** / **CONTENT**) and drags by its header
+   if it covers something. Mix both kinds freely on one page.
+3. **Copy** — **Copy** button or **Alt+Shift+C**, then paste into your agent.
+4. Turn it off when done. Notes are saved per page and come back next time you turn it on.
 
-   The note box shows which kind you're writing — a green **DESIGN** or blue **CONTENT** badge — and
-   can be dragged by its header if it covers something. Mix both kinds freely on one page.
-3. **Copy** — click **Copy** (or **Alt+Shift+C**) and paste into your agent.
-4. Turn it off when done. Your notes are saved per page and come back next time you turn it on.
-
-Works on any normal web page. (It can't run on `chrome://` pages, the Web Store, or PDFs — you'll see a red `!` if you try.)
+Works on any normal web page. (Not on `chrome://` pages, the Web Store or PDFs — you'll see a red `!`.)
 
 ### Shortcuts
 
@@ -67,20 +64,18 @@ Works on any normal web page. (It can't run on `chrome://` pages, the Web Store,
 |---|---|
 | **Alt+Shift+A** | turn the overlay on / off |
 | **Alt+Shift+C** | copy all notes (ready to paste) |
-| **Alt+A** | pause / resume clicking (clicks pass through while paused) |
+| **Alt+A** | pause / resume capture (clicks pass through while paused) |
 | **Alt+Shift+X** | clear all notes (asks first) |
 | **⌘/Ctrl+Enter** | save the note · **Esc** to cancel |
 
-Not sure? Click **? shortcuts** at the bottom of the panel for the full list. If **Alt+A** does nothing,
-Chrome left it unassigned — that link opens `chrome://extensions/shortcuts` where you can set it.
+The panel's **? shortcuts** link shows the same list. If **Alt+A** does nothing, Chrome left it
+unassigned — that link opens `chrome://extensions/shortcuts` where you can set it.
 
 ## What your agent gets
 
-Each note starts with **how to find the element in your code**, then your change and the current styles:
+**Design note** — how to find the element, then your change and the current styles:
 
 ```markdown
-App: react (dev build — source file:line per note; grep by data-testid / id / text, ignore hashed classes).
-
 ## [#2] make this the primary button — brand green
 source: src/components/Cart.tsx:48  <CheckoutButton>
 `<button class="btn" data-testid="checkout" type="submit">`  — text: "Place order"
@@ -90,12 +85,11 @@ dom-path (positional fallback): `main > form > button` · box 180x44 @640,520 ·
 ```
 
 - **Dev build?** Your agent opens `src/components/Cart.tsx:48` directly — no searching.
-- **Otherwise** it searches for `data-testid="checkout"` / `"Place order"`, and **instance** ("2 of 3")
-  tells it which copy you meant when an element repeats.
-- The **css** line is the "before" state, so a change like *"make the padding smaller"* has a starting point.
+- **Otherwise** it searches `data-testid="checkout"` / `"Place order"`; **instance** ("2 of 3") says
+  which copy you meant when an element repeats.
+- The **css** line is the before-state, so *"make the padding smaller"* has a starting point.
 
-Text-selection notes come out as **content notes** — anchored by the quote itself plus its context and
-section, so the agent greps the content source and answers / verifies / fixes per note:
+**Content note** — the quote, its context and where it sits, so the agent greps the content source:
 
 ```markdown
 ## [#3] verify this number — what is the data source?
@@ -105,25 +99,48 @@ context: …Across the quarter the«quote»compared to the previous period…
 block: `<p id="p-email">` · dom-path: `#p-email`
 ```
 
-The selected text gets a green highlight on the page (CSS Custom Highlight API — the page's DOM is
-never touched) and the note survives reloads like every other annotation.
+The `context` line disambiguates a phrase that repeats on the page, and the export tells the agent to
+**answer / verify / fix / expand per note** rather than restyle anything.
 
-## Why it works on real apps
+## How it works
 
-- **Finds your source** — on a dev build it reads the component's file and line right off the framework
-  (React / Next, Vue, Svelte, Angular). On a production site it instead picks the best thing to search for
-  (`data-testid` › `id` › visible text) and ignores random build-generated class names.
-- **Survives navigation** — in single-page apps (React, Vue, Next…) your notes stay attached to the right
-  page as you click around.
-- **Tiny and safe** — one small script (~36 KB, plain JavaScript, no build step, no framework). Your notes
-  live only in the page, on your machine.
-- **Barely any permissions** — `activeTab`, `scripting`, `storage`, and `clipboardWrite` (so the copy
-  shortcut works). No website access, no tracking, no account, no server.
+- **Anchors, not coordinates.** Design notes read the framework's own debug info for a file and line
+  (React / Next, Vue, Svelte, Angular dev builds), and otherwise pick the best greppable string
+  (`data-testid` › `id` › visible text). Build-hashed class names are detected and ignored.
+- **Content notes use a quote, not a DOM path** — quote + prefix/suffix, the same
+  [W3C TextQuoteSelector](https://www.w3.org/TR/annotation-model/#text-quote-selector) idea behind
+  Chrome's `#:~:text=` links. That survives re-renders and is greppable in your markdown or HTML source.
+- **Highlights don't touch your DOM** — the selection is painted with the
+  [CSS Custom Highlight API](https://developer.mozilla.org/en-US/docs/Web/API/CSS_Custom_Highlight_API),
+  so nothing is wrapped, injected or reflowed inside the page's own markup.
+- **Notes persist per route** in `localStorage` and re-resolve on reload; in single-page apps they
+  re-key on `pushState` / `popstate` so they never save under the wrong path.
+- **One file, no build.** ~45 KB of plain JavaScript, no framework, no bundler, CSP-safe. Paste
+  `extension/bh-annotate.js` into DevTools and it works without the extension at all.
 
-## Roadmap
+## Browser support
 
-Edit/undo, smarter pin re-locating, an options page, shadow-DOM & iframe support, a Web Store listing,
-and more — see **[extension/ROADMAP.md](extension/ROADMAP.md)**.
+| Browser | Extension | Content-note highlights |
+|---|---|---|
+| **Chrome** 102+ | ✅ | ✅ 105+ |
+| **Edge** 102+ | ✅ | ✅ 105+ |
+| **Brave / Opera / Arc** (Chromium) | ✅ | ✅ |
+| **Firefox** | ❌ not yet — [roadmap](ROADMAP.md) | API ships in 140+ (overlay via console paste, untested) |
+| **Safari** | ❌ not yet — [roadmap](ROADMAP.md) | API ships in 17.2+ (overlay via console paste, untested) |
+
+Below those highlight versions everything still works — the quote just isn't painted on the page.
+
+## Privacy & permissions
+
+Nothing is collected, nothing is sent anywhere, no remote code is loaded. Notes live in your browser's
+`localStorage` and only leave it when *you* press Copy. Four permissions, all needed:
+`activeTab` (reach the tab you're on) · `scripting` (inject the overlay) · `storage` (remember on/off
+per tab) · `clipboardWrite` (the copy shortcut). No host permissions — no access to any site until
+you switch it on. See [PRIVACY.md](PRIVACY.md).
+
+## More
+
+[Changelog](CHANGELOG.md) · [Roadmap](ROADMAP.md) · [Privacy](PRIVACY.md)
 
 ## License
 
