@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "name": "browser-annotations",
-  "version": "1.6.0",
-  "minimum_chrome_version": "102",
-  "description": "Point at any page, type what to change, copy the notes to your AI coding agent.",
+  "version": "1.7.0",
+  "minimum_chrome_version": "105",
+  "description": "Point at any page or select its text, type what to change or ask, copy the notes to your AI coding agent.",
   "permissions": ["activeTab", "scripting", "storage", "clipboardWrite"],
   "action": { "default_title": "Toggle annotations (browser-annotations) — Alt+Shift+A" },
   "background": { "service_worker": "background.js" },

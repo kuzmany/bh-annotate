@@ -2,10 +2,11 @@
 
 # browser-annotations
 
-**Click what you want changed. Type the fix. Paste into your AI coding agent.**
+**Design review: click what you want changed. Content review: select the text you want checked. Paste into your AI coding agent.**
 
-A tiny Chrome extension that turns *"make the button greener, move it left"* into precise notes your
-agent can act on — with the **exact source file** (or the text to search for) attached.
+A tiny Chrome extension that turns *"make the button greener, move it left"* — and *"verify this claim,
+expand this paragraph"* — into precise notes your agent can act on — with the **exact source file**
+(or the text to search for) attached.
 
 No account. No server. Nothing leaves your browser.
 
@@ -46,7 +47,15 @@ Not on the Chrome Web Store yet, so load it by hand:
 ## Use it
 
 1. **Turn it on** — click the toolbar button (or press **Alt+Shift+A**). The icon shows a green ●.
-2. **Annotate** — hover, click an element, type what to change, hit **Save**. Repeat for as many as you like.
+2. **Annotate** — the gesture picks the mode, no switch to flip:
+   - **Design note — click an element.** Hover highlights it, click opens the note box, type what to
+     change ("make this green", "move it left"), hit **Save**.
+   - **Content note — select a run of text.** The note box opens with the quote; type your question or
+     review remark ("verify this number", "expand this paragraph"). Great for reviewing AI-generated
+     reports and long pages. The quote gets a green highlight.
+
+   The note box shows which kind you're writing — a green **DESIGN** or blue **CONTENT** badge — and
+   can be dragged by its header if it covers something. Mix both kinds freely on one page.
 3. **Copy** — click **Copy** (or **Alt+Shift+C**) and paste into your agent.
 4. Turn it off when done. Your notes are saved per page and come back next time you turn it on.
 
@@ -84,6 +93,20 @@ dom-path (positional fallback): `main > form > button` · box 180x44 @640,520 ·
 - **Otherwise** it searches for `data-testid="checkout"` / `"Place order"`, and **instance** ("2 of 3")
   tells it which copy you meant when an element repeats.
 - The **css** line is the "before" state, so a change like *"make the padding smaller"* has a starting point.
+
+Text-selection notes come out as **content notes** — anchored by the quote itself plus its context and
+section, so the agent greps the content source and answers / verifies / fixes per note:
+
+```markdown
+## [#3] verify this number — what is the data source?
+> "conversion rate improved by 34%"
+section: Q3 Growth Report > Results > Email campaigns
+context: …Across the quarter the«quote»compared to the previous period…
+block: `<p id="p-email">` · dom-path: `#p-email`
+```
+
+The selected text gets a green highlight on the page (CSS Custom Highlight API — the page's DOM is
+never touched) and the note survives reloads like every other annotation.
 
 ## Why it works on real apps
 

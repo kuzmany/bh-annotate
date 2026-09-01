@@ -2,6 +2,9 @@
  *
  * Click elements on a page, write notes; copy them as markdown your AI coding
  * agent (Claude Code, Cursor, Codex) can read and act on.
+ * Or select a run of TEXT and note it — a content annotation anchored by the
+ * quoted text + surrounding context (W3C TextQuoteSelector style), for
+ * reviewing generated content: ask the agent to verify, expand or fix a claim.
  *
  * Loaded by the Chrome extension (toolbar / Alt+Shift+A) as a content script,
  * or paste this file into the DevTools console standalone.
@@ -79,6 +82,10 @@
     ".bh-pin{position:absolute;z-index:" + (Z + 1) + ";min-width:22px;height:22px;padding:0 6px;background:" + ACCENT + ";color:#fff;font:700 12px/22px " + FONT + ";text-align:center;border-radius:999px;box-shadow:0 2px 8px rgba(0,0,0,.45);cursor:pointer;pointer-events:auto;transition:transform .12s ease,box-shadow .12s ease,background .12s ease}" +
     ".bh-pin:hover{transform:scale(1.18);background:" + ACCENT_H + ";box-shadow:0 4px 14px rgba(16,163,127,.5)}" +
     "#bh-input{position:fixed;z-index:" + (Z + 3) + ";width:320px;background:" + BG + ";color:" + TXT + ";border:1px solid " + BORD + ";border-radius:16px;padding:14px;box-shadow:0 16px 48px rgba(0,0,0,.55),0 0 0 1px " + BORD_S + ";display:none;animation:bh-pop .16s ease both}" +
+    "#bh-input .bh-ihead{display:flex;align-items:center;gap:8px;margin:-14px -14px 10px;padding:9px 14px;background:" + HDR + ";border-bottom:1px solid " + BORD + ";border-radius:16px 16px 0 0;cursor:move;user-select:none}" +
+    "#bh-input .bh-badge{font:700 10px/1 " + FONT + ";letter-spacing:.08em;text-transform:uppercase;color:#fff;background:" + ACCENT + ";padding:4px 9px;border-radius:999px}" +
+    "#bh-input .bh-badge.c{background:#3b82f6}" +
+    "#bh-input .bh-grip{flex:1;text-align:right;color:" + MUT + ";font:600 10px/1 " + FONT + ";letter-spacing:.06em}" +
     "#bh-input textarea{width:100%;height:76px;resize:vertical;background:" + SURF + ";color:" + TXT + ";border:1px solid transparent;border-radius:12px;padding:10px 12px;font:14px/1.45 " + FONT + ";outline:none;transition:border-color .15s ease,background .15s ease}" +
     "#bh-input textarea:focus{border-color:" + ACCENT + ";background:#262626}" +
     "#bh-input textarea::placeholder{color:#8e8e8e}" +
@@ -117,7 +124,9 @@
     "#bh-help kbd{flex:0 0 auto;background:" + SURF + ";color:" + TXT + ";border:1px solid " + BORD + ";border-bottom-width:2px;border-radius:6px;padding:3px 7px;font:600 11px/1 " + MONO + ";white-space:nowrap}" +
     "#bh-help .tip{margin-top:12px;padding-top:9px;border-top:1px solid " + BORD_S + ";color:" + MUT + ";font:11px/1.45 " + FONT + ";word-break:break-word}" +
     "#bh-help .tip .lnk{color:" + ACCENT + ";cursor:pointer;text-decoration:underline;text-underline-offset:2px;word-break:break-all}" +
-    "#bh-help .tip .lnk:hover{color:" + ACCENT_H + "}";
+    "#bh-help .tip .lnk:hover{color:" + ACCENT_H + "}" +
+    // content (text-selection) notes — painted via the CSS Custom Highlight API (no DOM mutation)
+    "::highlight(bh-anno-text){background:rgba(16,163,127,.30)}";
 
   // ---------- element helpers ----------
   function el(tag, attrs) { var n = document.createElement(tag); n.setAttribute("data-bh-ui", "1"); if (attrs) for (var k in attrs) n.setAttribute(k, attrs[k]); return n; }
@@ -128,12 +137,31 @@
   var hl = el("div", { id: "bh-hl" }); hl.appendChild(el("div", { id: "bh-hl-tag" }));
 
   var input = el("div", { id: "bh-input" });
+  // header: kind badge (Design = element note, Content = text note) + drag handle
+  var inHead = el("div", { class: "bh-ihead" });
+  var inBadge = el("span", { class: "bh-badge" });
+  var inGrip = el("span", { class: "bh-grip" }); inGrip.textContent = "⠿ drag";
+  inHead.appendChild(inBadge); inHead.appendChild(inGrip);
   var inSel = el("div", { class: "bh-sel" }), inTa = document.createElement("textarea");
   inTa.setAttribute("data-bh-ui", "1"); inTa.placeholder = "Note for this element…";
   var inRow = el("div", { class: "bh-row" });
   var bSave = btn("Save", "p"), bCancel = btn("Cancel", "s");
   inRow.appendChild(bCancel); inRow.appendChild(bSave);
-  input.appendChild(inSel); input.appendChild(inTa); input.appendChild(inRow);
+  input.appendChild(inHead); input.appendChild(inSel); input.appendChild(inTa); input.appendChild(inRow);
+  // drag the note box by its header
+  var _drag = null;
+  function onDragStart(e) {
+    var r = input.getBoundingClientRect();
+    _drag = { x: e.clientX - r.left, y: e.clientY - r.top };
+    e.preventDefault();
+  }
+  function onDragMove(e) {
+    if (!_drag) return;
+    input.style.left = Math.max(0, Math.min(e.clientX - _drag.x, innerWidth - 80)) + "px";
+    input.style.top = Math.max(0, Math.min(e.clientY - _drag.y, innerHeight - 40)) + "px";
+  }
+  function onDragEnd() { _drag = null; }
+  inHead.addEventListener("mousedown", onDragStart);
 
   var panel = el("div", { id: "bh-panel" });
   var ph = el("div", { class: "h" });
@@ -150,11 +178,13 @@
   [
     ["In the browser", [
       ["Toggle annotations on/off", ["Alt+Shift+A"]],
-      ["Copy notes (markdown)", ["Alt+Shift+C"]]
+      ["Copy notes (markdown)", ["Alt+Shift+C"]],
+      ["Pause / resume capture", ["Alt+A"]],
+      ["Clear all notes", ["Alt+Shift+X"]]
     ]],
     ["While annotating", [
-      ["Pause / resume capture", ["Alt+A"]],
-      ["Clear all notes", ["Alt+Shift+X"]],
+      ["Element note", ["click it"]],
+      ["Content note", ["select text"]],
       ["Save note", ["⌘/Ctrl", "Enter"]],
       ["Cancel note", ["Esc"]]
     ]]
@@ -194,6 +224,7 @@
 
   // ---------- hover highlight ----------
   function onMove(e) {
+    if (_drag) { onDragMove(e); hl.style.display = "none"; return; }
     if (!S.mode) { hl.style.display = "none"; return; }
     var t = e.target;
     if (isUI(t)) { hl.style.display = "none"; return; }
@@ -293,9 +324,161 @@
     _STYLE_KEYS.forEach(function (k) { var v = cs[k]; if (v && v !== "normal" && v !== "auto" && v !== "0px" && v !== "none") o[k] = v; });
     return o;
   }
+  // ---------- content (text-selection) notes ----------
+  // Anchors follow the W3C TextQuoteSelector idea (quote + prefix/suffix), the same
+  // model Chrome's #:~:text= fragment links use — the quote is greppable in the
+  // content source, unlike a positional DOM selector.
+  function norm(s) { return (s || "").replace(/\s+/g, " ").trim(); }
+  function blockOf(range) {
+    var n = range.commonAncestorContainer;
+    var el2 = n.nodeType === 1 ? n : n.parentElement;
+    while (el2 && el2 !== document.body) {
+      var d = "";
+      try { d = getComputedStyle(el2).display; } catch (e) {}
+      if (d && d !== "inline" && d !== "inline-block" && d !== "contents") return el2;
+      el2 = el2.parentElement;
+    }
+    return el2 || document.body;
+  }
+  function ctxAround(range, n) {
+    // raw text before/after the selection within the whole body (normalized later)
+    var pre = "", suf = "";
+    try {
+      var r = range.cloneRange();
+      r.setStart(document.body, 0); r.setEnd(range.startContainer, range.startOffset);
+      pre = r.toString().slice(-(n * 3));
+    } catch (e) {}
+    try {
+      var r2 = range.cloneRange();
+      r2.setStart(range.endContainer, range.endOffset); r2.setEnd(document.body, document.body.childNodes.length);
+      suf = r2.toString().slice(0, n * 3);
+    } catch (e) {}
+    return { prefix: norm(pre).slice(-n), suffix: norm(suf).slice(0, n) };
+  }
+  function headingChain(range) {
+    var hs = document.querySelectorAll("h1,h2,h3,h4,h5,h6"), prior = [];
+    for (var i = 0; i < hs.length; i++) {
+      var h = hs[i];
+      if (isUI(h)) continue;
+      var pos = range.startContainer.compareDocumentPosition(h);
+      if ((pos & Node.DOCUMENT_POSITION_PRECEDING) || (pos & Node.DOCUMENT_POSITION_CONTAINS)) prior.push(h);
+    }
+    var chain = [], lvl = 7;
+    for (var j = prior.length - 1; j >= 0; j--) {
+      var L = +prior[j].tagName.charAt(1);
+      if (L < lvl) { chain.unshift(norm(prior[j].textContent).slice(0, 60)); lvl = L; if (L === 1) break; }
+    }
+    return chain.join(" > ");
+  }
+  // Flat, whitespace-normalized text of the page + a char→(node,offset) map, so a
+  // stored quote can be re-found as a live Range (survives reloads via localStorage).
+  function flatText() {
+    var out = "", map = [], lastWS = true;
+    var w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+      acceptNode: function (n) {
+        var p = n.parentElement;
+        if (!p || isUI(p)) return NodeFilter.FILTER_REJECT;
+        var tg = p.tagName;
+        if (tg === "SCRIPT" || tg === "STYLE" || tg === "NOSCRIPT" || tg === "TEMPLATE") return NodeFilter.FILTER_REJECT;
+        return NodeFilter.FILTER_ACCEPT;
+      }
+    });
+    while (w.nextNode()) {
+      var n = w.currentNode, d = n.data;
+      for (var i = 0; i < d.length; i++) {
+        var ws = /\s/.test(d.charAt(i));
+        if (ws) { if (lastWS) continue; out += " "; map.push({ node: n, off: i }); lastWS = true; }
+        else { out += d.charAt(i); map.push({ node: n, off: i }); lastWS = false; }
+      }
+    }
+    return { text: out, map: map };
+  }
+  function findRange(a, flat) {
+    var q = norm(a.quote); if (!q) return null;
+    var idxs = [], i = flat.text.indexOf(q);
+    while (i !== -1 && idxs.length < 50) { idxs.push(i); i = flat.text.indexOf(q, i + 1); }
+    if (!idxs.length) return null;
+    var pick = idxs[0];
+    if (idxs.length > 1) {
+      var pre = norm(a.prefix), suf = norm(a.suffix), best = idxs[0], score = -1;
+      idxs.forEach(function (ix) {
+        var s = 0;
+        if (pre && flat.text.slice(Math.max(0, ix - pre.length - 2), ix).indexOf(pre.slice(-20)) !== -1) s += 2;
+        if (suf && flat.text.slice(ix + q.length, ix + q.length + suf.length + 2).indexOf(suf.slice(0, 20)) !== -1) s += 2;
+        if (s > score) { score = s; best = ix; }
+      });
+      pick = best;
+    }
+    var sM = flat.map[pick], eM = flat.map[pick + q.length - 1];
+    if (!sM || !eM) return null;
+    var r = document.createRange();
+    try { r.setStart(sM.node, sM.off); r.setEnd(eM.node, eM.off + 1); } catch (e) { return null; }
+    return r;
+  }
+  // Resolved live Ranges per text item — cached (flatText is O(page)); rebuilt on
+  // render(), not on scroll (live Ranges track layout by themselves).
+  var _textRanges = {};
+  function resolveTextRanges() {
+    _textRanges = {};
+    var flat = null;
+    S.items.forEach(function (a) {
+      if (a.kind !== "text") return;
+      if (!flat) flat = flatText();
+      var r = findRange(a, flat);
+      if (r) _textRanges[a.id] = r;
+    });
+    paintHighlights();
+  }
+  function paintHighlights() {
+    if (!(window.Highlight && window.CSS && CSS.highlights)) return;
+    try {
+      var h = new Highlight();
+      for (var k in _textRanges) h.add(_textRanges[k]);
+      CSS.highlights.set("bh-anno-text", h);
+    } catch (e) {}
+  }
+
   var pending = null;
+  function captureSelection() {
+    var sel = null;
+    try { sel = window.getSelection(); } catch (e) {}
+    if (!sel || sel.isCollapsed || !sel.rangeCount) return false;
+    var range = sel.getRangeAt(0);
+    if (isUI(range.commonAncestorContainer.nodeType === 1 ? range.commonAncestorContainer : range.commonAncestorContainer.parentElement)) return false;
+    var qRaw = range.toString();
+    if (norm(qRaw).length < 3) return false;
+    var block = blockOf(range), r = range.getClientRects()[0] || range.getBoundingClientRect();
+    var ctx = ctxAround(range, 40);
+    pending = {
+      kind: "text",
+      quote: norm(qRaw).slice(0, 500),
+      prefix: ctx.prefix, suffix: ctx.suffix,
+      section: headingChain(range),
+      selector: selectorFor(block), tag: block.tagName.toLowerCase(),
+      html: openTagOf(block.tagName.toLowerCase(), block.id || "", classOf(block), attrsOf(block)),
+      rect: { x: Math.round(r.left + scrollX), y: Math.round(r.top + scrollY), w: Math.round(r.width), h: Math.round(r.height) }
+    };
+    inSel.textContent = "“" + pending.quote.slice(0, 90) + (pending.quote.length > 90 ? "…" : "") + "”";
+    inBadge.textContent = "Content"; inBadge.className = "bh-badge c";
+    inTa.value = ""; inTa.placeholder = "Question / note for this text…";
+    var x = Math.min(r.right, innerWidth - 320), y = Math.min(r.bottom + 8, innerHeight - 170);
+    input.style.left = Math.max(8, x) + "px"; input.style.top = Math.max(8, y) + "px"; input.style.display = "block";
+    setTimeout(function () { inTa.focus(); }, 0);
+    return true;
+  }
+  function onMouseUp(e) {
+    if (_drag) { onDragEnd(); return; }
+    if (!S.mode || isUI(e.target)) return;
+    if (input.style.display === "block") return;
+    // let the browser finish the selection before reading it
+    setTimeout(captureSelection, 0);
+  }
   function onClick(e) {
     if (!S.mode || isUI(e.target)) return;
+    // a note box is open (element or text note) — a page click cancels it, nothing more
+    if (input.style.display === "block") { e.preventDefault(); e.stopPropagation(); cancel(); return; }
+    // an active text selection belongs to the mouseup → content-note path
+    try { var _s = window.getSelection(); if (_s && !_s.isCollapsed) return; } catch (err) {}
     e.preventDefault(); e.stopPropagation();
     var t = e.target, r = t.getBoundingClientRect(), cs = getComputedStyle(t);
     var id = t.id || "", cls = classOf(t), at = attrsOf(t);
@@ -307,7 +490,8 @@
       rect: { x: Math.round(r.left + scrollX), y: Math.round(r.top + scrollY), w: Math.round(r.width), h: Math.round(r.height) },
       color: cs.color, bg: cs.backgroundColor
     };
-    inSel.textContent = pending.selector; inTa.value = "";
+    inSel.textContent = pending.selector; inTa.value = ""; inTa.placeholder = "Note for this element…";
+    inBadge.textContent = "Design"; inBadge.className = "bh-badge";
     var x = Math.min(e.clientX, innerWidth - 320), y = Math.min(e.clientY, innerHeight - 150);
     input.style.left = Math.max(8, x) + "px"; input.style.top = Math.max(8, y) + "px"; input.style.display = "block";
     setTimeout(function () { inTa.focus(); }, 0);
@@ -317,6 +501,7 @@
     var note = inTa.value.trim(); if (!note) { cancel(); return; }
     pending.id = ++seq; pending.note = note; pending.ts = Date.now();
     S.items.push(pending); pending = null; input.style.display = "none";
+    if (S.items[S.items.length - 1].kind === "text") { try { window.getSelection().removeAllRanges(); } catch (e) {} }
     save(); render();
   }
   function cancel() { pending = null; input.style.display = "none"; }
@@ -329,7 +514,7 @@
     list.innerHTML = "";
     if (!S.items.length) {
       var em = el("div", { class: "empty" });
-      ["1 · Hover + click an element", "2 · Type the change → Save", "3 · Copy → paste to Claude / Cursor / Codex"].forEach(function (line, i) {
+      ["1 · Click an element — or select text", "2 · Type the change / question → Save", "3 · Copy → paste to Claude / Cursor / Codex"].forEach(function (line, i) {
         if (i) em.appendChild(document.createElement("br"));
         em.appendChild(document.createTextNode(line));
       });
@@ -340,23 +525,33 @@
       var n = el("span", { class: "n" }); n.textContent = a.id;
       var b = el("div", { class: "b" });
       var note = document.createElement("div"); note.textContent = a.note;
-      var s = el("div", { class: "s" }); s.textContent = a.selector;
+      var s = el("div", { class: "s" });
+      s.textContent = a.kind === "text" ? "“" + a.quote.slice(0, 70) + (a.quote.length > 70 ? "…" : "") + "”" : a.selector;
       b.appendChild(note); b.appendChild(s);
       var x = el("span", { class: "x" }); x.textContent = "✕";
       x.onclick = function () { S.items = S.items.filter(function (q) { return q.id !== a.id; }); save(); render(); };
       it.appendChild(n); it.appendChild(b); it.appendChild(x);
       list.appendChild(it);
     });
+    resolveTextRanges();
     layoutPins();
   }
   function layoutPins() {
     if (!pinLayer) return;
     pinLayer.innerHTML = "";
     S.items.forEach(function (a) {
-      var node = null; try { node = document.querySelector(a.selector); } catch (e) {}
       var pin = el("div", { class: "bh-pin" }); pin.textContent = a.id; pin.title = a.note;
-      if (node) { var r = node.getBoundingClientRect(); pin.style.left = (r.left + scrollX - 6) + "px"; pin.style.top = (r.top + scrollY - 6) + "px"; }
-      else { pin.style.left = (a.rect.x - 6) + "px"; pin.style.top = (a.rect.y - 6) + "px"; pin.style.opacity = ".5"; }
+      var r = null;
+      if (a.kind === "text") {
+        var tr = _textRanges[a.id];
+        // first client rect = start of the quote (bounding rect of a wrapped range spans the whole block)
+        if (tr) { try { r = tr.getClientRects()[0] || tr.getBoundingClientRect(); } catch (e) {} }
+      } else {
+        var node = null; try { node = document.querySelector(a.selector); } catch (e) {}
+        if (node) r = node.getBoundingClientRect();
+      }
+      if (r) { pin.style.left = (r.left + scrollX - 6) + "px"; pin.style.top = (r.top + scrollY - 6) + "px"; }
+      else { pin.style.left = ((a.rect || {}).x - 6) + "px"; pin.style.top = ((a.rect || {}).y - 6) + "px"; pin.style.opacity = ".5"; }
       pinLayer.appendChild(pin);
     });
   }
@@ -368,6 +563,7 @@
   // ---------- wiring ----------
   document.addEventListener("mousemove", onMove, true);
   document.addEventListener("click", onClick, true);
+  document.addEventListener("mouseup", onMouseUp, true);
   function onKey(e) {
     if (e.key === "Escape" && input.style.display === "block") cancel();
     // Alt+A toggles capture. Match the physical key (e.code) so it survives macOS Option-remapping
@@ -424,17 +620,28 @@
   }
   // One-line strategy hint for the agent, derived from what we actually captured.
   function envBanner() {
-    var fws = {}, withSrc = 0;
-    S.items.forEach(function (a) { if (a.src) { if (a.src.fw) fws[a.src.fw] = 1; if (a.src.file || a.src.comp) withSrc++; } });
-    var names = Object.keys(fws);
-    if (withSrc) return "App: " + names.join("/") + " (dev build — each note carries a source file:line/<Component>; grep by data-testid / id / visible text, ignore hashed class names and the positional dom-path).";
-    if (names.length) return "App: " + names.join("/") + " (component framework — grep by data-testid / id / visible text / aria-label; class names may be build-hashed; dom-path is positional, not source).";
-    return "Static / server-rendered — id, class, attributes and text appear literally in source; grep the opening tag, id or text.";
+    var fws = {}, withSrc = 0, textN = 0;
+    S.items.forEach(function (a) { if (a.kind === "text") { textN++; return; } if (a.src) { if (a.src.fw) fws[a.src.fw] = 1; if (a.src.file || a.src.comp) withSrc++; } });
+    var names = Object.keys(fws), line;
+    if (withSrc) line = "App: " + names.join("/") + " (dev build — each note carries a source file:line/<Component>; grep by data-testid / id / visible text, ignore hashed class names and the positional dom-path).";
+    else if (names.length) line = "App: " + names.join("/") + " (component framework — grep by data-testid / id / visible text / aria-label; class names may be build-hashed; dom-path is positional, not source).";
+    else line = "Static / server-rendered — id, class, attributes and text appear literally in source; grep the opening tag, id or text.";
+    if (textN) line += "\nContent notes (quoted text): review notes about the content itself — grep the quote in the content source, then answer / verify / fix / expand as the note asks.";
+    return line;
   }
   function toMarkdown() {
     var L = ["# Web annotations — " + S.items.length + " item(s)", "", "Source: " + location.href, "", envBanner(), ""];
     S.items.forEach(function (a) {
       var r = a.rect || {};
+      if (a.kind === "text") {
+        L.push("## [#" + a.id + "] " + (a.note || ""));
+        L.push('> "' + a.quote + '"');
+        if (a.section) L.push("section: " + a.section);
+        if (a.prefix || a.suffix) L.push("context: …" + (a.prefix || "") + "«quote»" + (a.suffix || "") + "…");
+        L.push("block: `" + (a.html || ("<" + a.tag + ">")) + "` · dom-path: `" + a.selector + "`");
+        L.push("");
+        return;
+      }
       L.push("## [#" + a.id + "] " + (a.note || ""));
       L.push(findBy(a));
       var anchor = "`" + (a.html || ("<" + a.tag + ">")) + "`";
@@ -465,7 +672,7 @@
       navigator.clipboard.writeText(text).then(function () { flashCopy("✓ Copied"); }, fallback);
     } else { fallback(); }
   }
-  var PROMPT_PRE = "For each annotation below: locate the element in my source, make the described change, then re-check it in the browser. Prefer the `source:`/`component:` hint when present; otherwise grep by data-testid / id / visible text / aria-label. Ignore build-hashed class names and the positional dom-path. The captured css is the before-state.";
+  var PROMPT_PRE = "For each annotation below: locate the element in my source, make the described change, then re-check it in the browser. Prefer the `source:`/`component:` hint when present; otherwise grep by data-testid / id / visible text / aria-label. Ignore build-hashed class names and the positional dom-path. The captured css is the before-state. Notes with a quoted `> \"...\"` block are CONTENT notes: find the quote in the content source and answer / verify / fix / expand it as the note asks — reply per note.";
   function copyMarkdown() { if (!S.items.length) { flashCopy("empty"); return; } copyText(toMarkdown()); }
   function copyJson() { if (!S.items.length) { flashCopy("empty"); return; } copyText(JSON.stringify(S.items, null, 2)); }
   function copyPrompt() { if (!S.items.length) { flashCopy("empty"); return; } copyText(PROMPT_PRE + "\n\n" + toMarkdown()); }
@@ -524,6 +731,8 @@
     try {
       document.removeEventListener("mousemove", onMove, true);
       document.removeEventListener("click", onClick, true);
+      document.removeEventListener("mouseup", onMouseUp, true);
+      try { if (window.CSS && CSS.highlights) CSS.highlights.delete("bh-anno-text"); } catch (e) {}
       document.removeEventListener("keydown", onKey, true);
       window.removeEventListener("scroll", scheduleLayout, true);
       window.removeEventListener("resize", scheduleLayout);
